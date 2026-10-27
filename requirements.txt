@@ -1,0 +1,12 @@
+flask==3.0.3
+flask-cors==5.0.0
+flask-sqlalchemy==3.1.1
+python-dotenv
+werkzeug==3.0.6
+opencv-python==4.10.0.84
+mediapipe==0.10.14
+deepface
+numpy==1.26.4
+pynput==1.7.7
+requests==2.32.3
+protobuf==5.27.2

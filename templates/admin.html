@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0d0d1a;
+            color: #fff;
+            min-height: 100vh;
+        }
+        .navbar {
+            background: rgba(255,255,255,0.04);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding: 0 30px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .brand { font-size: 18px; font-weight: 700; }
+        .nav-links { display: flex; gap: 8px; align-items: center; }
+        .nav-links a {
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .nav-links a:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .logout {
+            background: rgba(255,80,80,0.1) !important;
+            color: #ff6b6b !important;
+            border: 1px solid rgba(255,80,80,0.2);
+        }
+        .main { padding: 30px; max-width: 1000px; margin: 0 auto; }
+        .header {
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header h1 { font-size: 24px; font-weight: 700; }
+        .total-badge {
+            background: linear-gradient(135deg, #7c6ff7, #5b4fcf);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .table-box {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        thead {
+            background: rgba(124,111,247,0.15);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        th {
+            padding: 16px 20px;
+            text-align: left;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.5);
+        }
+        td {
+            padding: 16px 20px;
+            font-size: 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+        .id-badge {
+            background: rgba(124,111,247,0.2);
+            color: #7c6ff7;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .username { color: #fff; font-weight: 600; }
+        .email { color: rgba(255,255,255,0.5); }
+        .empty {
+            text-align: center;
+            padding: 60px;
+            color: rgba(255,255,255,0.3);
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="brand">🧠 Admin Panel</div>
+    <div class="nav-links">
+        <a href="/dashboard">📹 Dashboard</a>
+        <a href="/chatbot_page">💬 Chatbot</a>
+        <a href="/logout" class="logout">Logout</a>
+    </div>
+</nav>
+
+<div class="main">
+    <div class="header">
+        <h1>👥 Registered Users</h1>
+        <span class="total-badge">Total: {{ users|length }}</span>
+    </div>
+
+    <div class="table-box">
+        {% if users %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td><span class="id-badge">#{{ user.id }}</span></td>
+                    <td><span class="username">{{ user.username }}</span></td>
+                    <td><span class="email">{{ user.email }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty">😔 Koi user registered nahi hai abhi tak!</div>
+        {% endif %}
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Analyzer — Dashboard</title>
+    <script src="{{ url_for('static', filename='js/face-api.min.js') }}"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0d0d1a; color: #fff; min-height: 100vh; }
+        .navbar { background: rgba(255,255,255,0.04); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0 30px; height: 64px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+        .brand { font-size: 18px; font-weight: 700; }
+        .nav-links { display: flex; gap: 8px; align-items: center; }
+        .nav-links a { color: rgba(255,255,255,0.6); text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 14px; transition: all 0.2s; }
+        .nav-links a:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .nav-links a.active { background: rgba(124,111,247,0.2); color: #7c6ff7; }
+        .nav-links .logout { background: rgba(255,80,80,0.1); color: #ff6b6b; border: 1px solid rgba(255,80,80,0.2); }
+        .user-badge { background: linear-gradient(135deg, #7c6ff7, #5b4fcf); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+        .main { display: grid; grid-template-columns: 1fr 360px; gap: 20px; padding: 24px; max-width: 1400px; margin: 0 auto; }
+        .camera-section { display: flex; flex-direction: column; gap: 16px; }
+        .camera-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; overflow: hidden; }
+        .camera-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .camera-header h2 { font-size: 16px; font-weight: 600; }
+        .status-pill { padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 700; background: rgba(255,255,255,0.08); transition: all 0.3s; }
+        .video-wrapper { position: relative; width: 100%; background: #000; min-height: 420px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        #video { width: 100%; display: none; transform: scaleX(-1); }
+        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); pointer-events: none; }
+        .camera-placeholder { text-align: center; color: rgba(255,255,255,0.2); }
+        .camera-placeholder .big-icon { font-size: 64px; display: block; margin-bottom: 12px; }
+        .camera-placeholder p { font-size: 14px; }
+        .camera-controls { padding: 16px 20px; display: flex; gap: 12px; border-top: 1px solid rgba(255,255,255,0.06); }
+        .btn-start { flex: 1; padding: 13px; background: linear-gradient(135deg, #00c853, #00a846); border: none; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .btn-start:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,200,83,0.3); }
+        .btn-stop { flex: 1; padding: 13px; background: rgba(255,80,80,0.15); border: 1px solid rgba(255,80,80,0.3); border-radius: 10px; color: #ff6b6b; font-size: 15px; font-weight: 600; cursor: pointer; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+        .stat-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; text-align: center; transition: border-color 0.3s; }
+        .stat-icon { font-size: 22px; margin-bottom: 6px; }
+        .stat-value { font-size: 22px; font-weight: 700; color: #7c6ff7; }
+        .stat-label { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+        .metric-bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 6px; }
+        .metric-fill { height: 100%; border-radius: 2px; transition: all 0.2s; }
+        .right-panel { display: flex; flex-direction: column; gap: 16px; }
+        .panel-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 20px; }
+        .panel-card h3 { font-size: 12px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+        .info-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .info-row:last-child { border-bottom: none; }
+        .info-row .label { color: rgba(255,255,255,0.5); font-size: 13px; }
+        .info-row .value { font-size: 13px; font-weight: 600; }
+        .status-indicator { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-radius: 12px; transition: all 0.3s; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); }
+        .status-circle { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; animation: sPulse 2s infinite; }
+        @keyframes sPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.3)} }
+        .status-text { font-size: 16px; font-weight: 700; }
+        .status-sub { font-size: 11px; color: rgba(255,255,255,0.45); margin-left: auto; }
+        .suggestion-box { background: linear-gradient(135deg, rgba(124,111,247,0.1), rgba(91,79,207,0.08)); border: 1px solid rgba(124,111,247,0.3); border-radius: 14px; padding: 16px; }
+        .ai-label { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #7c6ff7; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+        .ai-dot { width: 7px; height: 7px; background: #7c6ff7; border-radius: 50%; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .suggestion-box p { color: rgba(255,255,255,0.85); font-size: 13px; line-height: 1.65; }
+        .chatbot-btn { display: block; width: 100%; padding: 14px; background: linear-gradient(135deg, #7c6ff7, #5b4fcf); border: none; border-radius: 12px; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; transition: all 0.3s; }
+        .chatbot-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(124,111,247,0.4); }
+        .memory-banner { background: rgba(0,200,83,0.06); border: 1px solid rgba(0,200,83,0.18); border-radius: 14px; padding: 12px 18px; display: flex; align-items: center; gap: 10px; font-size: 13px; color: rgba(255,255,255,0.7); }
+        .cont-btn { margin-left: auto; background: rgba(0,200,83,0.15); border: 1px solid rgba(0,200,83,0.25); color: #00c853; padding: 5px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; }
+        .popup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 999; display: none; align-items: center; justify-content: center; }
+        .popup-overlay.show { display: flex; }
+        .popup-box { background: #1a1a2e; border: 1px solid rgba(124,111,247,0.3); border-radius: 24px; padding: 32px; max-width: 480px; width: 92%; text-align: center; animation: popIn 0.3s ease; }
+        @keyframes popIn { from{transform:scale(0.85);opacity:0} to{transform:scale(1);opacity:1} }
+        .popup-icon { font-size: 52px; display: block; margin-bottom: 14px; }
+        .popup-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+        .popup-box p { color: rgba(255,255,255,0.6); font-size: 13px; margin-bottom: 22px; }
+        .popup-games { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 18px; }
+        .game-btn { padding: 14px 6px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; color: #fff; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+        .game-btn:hover { background: rgba(124,111,247,0.2); border-color: #7c6ff7; transform: translateY(-2px); }
+        .g-icon { font-size: 26px; display: block; margin-bottom: 6px; }
+        .popup-skip { background: transparent; border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; color: rgba(255,255,255,0.45); padding: 9px 20px; cursor: pointer; font-size: 13px; }
+        .game-container { display: none; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; }
+        .game-container.show { display: block; }
+        .game-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+        .close-game { background: rgba(255,80,80,0.1); border: 1px solid rgba(255,80,80,0.2); color: #ff6b6b; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+        .ttt-board { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; max-width: 240px; margin: 0 auto 14px; }
+        .ttt-cell { aspect-ratio: 1; background: rgba(255,255,255,0.04); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 30px; cursor: pointer; transition: all 0.2s; }
+        .ttt-cell:hover { background: rgba(124,111,247,0.15); border-color: #7c6ff7; }
+        .ttt-cell.x { color: #7c6ff7; } .ttt-cell.o { color: #ff6b6b; }
+        .ttt-status { text-align: center; font-size: 14px; color: rgba(255,255,255,0.7); margin-bottom: 10px; }
+        .ttt-reset { width: 100%; padding: 10px; background: rgba(124,111,247,0.12); border: 1px solid rgba(124,111,247,0.25); border-radius: 10px; color: #7c6ff7; cursor: pointer; font-size: 13px; margin-top: 6px; }
+        .puzzle-board { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; max-width: 260px; margin: 0 auto 14px; }
+        .puzzle-cell { aspect-ratio: 1; background: linear-gradient(135deg,#7c6ff7,#5b4fcf); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+        .puzzle-cell.empty { background: rgba(255,255,255,0.04); cursor: default; }
+        .puzzle-moves { text-align: center; color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 8px; }
+        .memory-board { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; max-width: 280px; margin: 0 auto 14px; }
+        .mem-card { aspect-ratio: 1; background: linear-gradient(135deg,#7c6ff7,#5b4fcf); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; transition: all 0.3s; }
+        .mem-card.hidden { background: rgba(255,255,255,0.07); } .mem-card.hidden span { display: none; }
+        .mem-card.matched { background: linear-gradient(135deg,#00c853,#00a846); cursor: default; }
+        .mem-score { text-align: center; color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 8px; }
+        .game-complete { background: rgba(0,200,83,0.1); border: 1px solid rgba(0,200,83,0.25); border-radius: 14px; padding: 18px; text-align: center; margin-top: 14px; }
+        .game-complete h3 { color: #00c853; font-size: 17px; margin-bottom: 6px; }
+        .resume-btn { margin-top: 12px; padding: 9px 22px; background: linear-gradient(135deg,#7c6ff7,#5b4fcf); border: none; border-radius: 10px; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+    </style>
+</head>
+<body>
+<nav class="navbar">
+    <div class="brand">🧠 AI Study Analyzer</div>
+    <div class="nav-links">
+        <a href="/dashboard" class="active">📹 Monitor</a>
+        <a href="/chatbot_page">💬 ARIA</a>
+        <span class="user-badge">👤 {{ user }}</span>
+        <a href="/logout" class="logout">Logout</a>
+    </div>
+</nav>
+
+<div class="popup-overlay" id="game-popup">
+    <div class="popup-box">
+        <span class="popup-icon">😴</span>
+        <h2>Fatigue Detected!</h2>
+        <p>Your monitoring data shows mental fatigue. A quick brain game will help! 🧠</p>
+        <div class="popup-games">
+            <button class="game-btn" onclick="startGame('ttt')"><span class="g-icon">⭕</span>Tic Tac Toe</button>
+            <button class="game-btn" onclick="startGame('puzzle')"><span class="g-icon">🔢</span>15 Puzzle</button>
+            <button class="game-btn" onclick="startGame('memory')"><span class="g-icon">🃏</span>Memory</button>
+        </div>
+        <button class="popup-skip" onclick="closePopup()">Skip for now</button>
+    </div>
+</div>
+
+<div class="main">
+    <div class="camera-section">
+        {% if last_topic %}
+        <div class="memory-banner">
+            🧠 <span>Last session: <em>"{{ last_topic[:65] }}..."</em></span>
+            <button class="cont-btn" onclick="window.location.href='/chatbot_page'">Resume →</button>
+        </div>
+        {% endif %}
+
+        <div class="camera-box">
+            <div class="camera-header">
+                <h2>📹 Live Monitoring</h2>
+                <span class="status-pill" id="status-pill">● INACTIVE</span>
+            </div>
+            <div class="video-wrapper">
+                <video id="video" autoplay muted playsinline></video>
+                <canvas id="overlay"></canvas>
+                <div class="camera-placeholder" id="placeholder">
+                    <span class="big-icon">📷</span>
+                    <p>Press Start to begin monitoring</p>
+                </div>
+            </div>
+            <div class="camera-controls">
+                <button class="btn-start" onclick="startCamera()">▶ Start Monitoring</button>
+                <button class="btn-stop" onclick="stopCamera()">⏹ Stop</button>
+            </div>
+        </div>
+
+        <div class="game-container" id="game-container">
+            <div class="game-title">
+                <span id="game-title-text">🎮 Brain Game</span>
+                <button class="close-game" onclick="closeGame()">✕ Close</button>
+            </div>
+            <div id="game-content"></div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">👁️</div>
+                <div class="stat-value" id="stat-blinks">0</div>
+                <div class="stat-label">Blinks</div>
+                <div class="metric-bar"><div class="metric-fill" id="ear-fill" style="width:80%;background:#00c853"></div></div>
+            </div>
+            <div class="stat-card"><div class="stat-icon">⌨️</div><div class="stat-value" id="stat-keys">0</div><div class="stat-label">Keys Pressed</div></div>
+            <div class="stat-card"><div class="stat-icon">🖱️</div><div class="stat-value" id="stat-moves">0</div><div class="stat-label">Mouse Moves</div></div>
+            <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value" id="stat-idle">0s</div><div class="stat-label">Idle Time</div></div>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div class="panel-card">
+            <h3>Current Status</h3>
+            <div class="status-indicator" id="status-indicator">
+                <div class="status-circle" id="status-circle" style="background:#888"></div>
+                <span class="status-text" id="status-text">MONITORING</span>
+                <span class="status-sub" id="status-sub">Collecting data...</span>
+            </div>
+        </div>
+
+        <div class="panel-card">
+            <h3>Face Analysis</h3>
+            <div class="info-row"><span class="label">Expression</span><span class="value" id="info-emotion">—</span></div>
+            <div class="info-row"><span class="label">Eye Status</span><span class="value" id="info-eye">—</span></div>
+            <div class="info-row"><span class="label">Head Direction</span><span class="value" id="info-head">—</span></div>
+            <div class="info-row"><span class="label">Yawning</span><span class="value" id="info-yawn">No 😊</span></div>
+        </div>
+
+        <div class="panel-card">
+            <h3>AI Coach — ARIA</h3>
+            <div class="suggestion-box">
+                <div class="ai-label"><div class="ai-dot"></div>Live Coaching</div>
+                <p id="ai-suggestion">Start monitoring to receive AI coaching... 📊</p>
+            </div>
+        </div>
+
+        <div class="panel-card">
+            <h3>Need Help?</h3>
+            <a href="/chatbot_page" class="chatbot-btn">💬 Chat with ARIA</a>
+        </div>
+    </div>
+</div>
+
+<script>
+let monitoring    = false;
+let modelsLoaded  = false;
+let blinkCount    = 0;
+let yawnCount     = 0;
+let earConsec     = 0;
+let yawnConsec    = 0;
+let blinkCooldown = false;
+let earHistory    = [];
+let marHistory    = [];
+let frameCount    = 0;
+let lastSendTime  = 0;
+let animFrame     = null;
+
+const EAR_THRESH   = 0.32;
+const MAR_THRESH   = 0.55;
+const BLINK_CONSEC = 1;
+const YAWN_CONSEC  = 15;
+
+async function loadModels() {
+    try {
+        await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri('/static/models'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('/static/models'),
+            faceapi.nets.faceExpressionNet.loadFromUri('/static/models')
+        ]);
+        modelsLoaded = true;
+        console.log('✅ Models loaded');
+    } catch(e) { console.error('Model error:', e); }
+}
+loadModels();
+
+function dist(a, b) {
+    return Math.sqrt(Math.pow(a.x-b.x,2) + Math.pow(a.y-b.y,2));
+}
+
+function computeEAR(pts) {
+    const A = dist(pts[1], pts[5]);
+    const B = dist(pts[2], pts[4]);
+    const C = dist(pts[0], pts[3]);
+    return C < 0.001 ? 1 : (A + B) / (2.0 * C);
+}
+
+function computeMAR(pts) {
+    const top    = pts[62];
+    const bottom = pts[66];
+    const left   = pts[60];
+    const right  = pts[64];
+    const vert   = dist(top, bottom);
+    const horiz  = dist(left, right);
+    return horiz < 0.001 ? 0 : vert / horiz;
+}
+
+function getHeadDir(pts) {
+    const nose   = pts[30];
+    const lEye   = pts[36];
+    const rEye   = pts[45];
+    const midX   = (lEye.x + rEye.x) / 2;
+    const faceW  = dist(lEye, rEye);
+    const offset = (nose.x - midX) / (faceW + 0.001);
+    if (offset < -0.15) return 'Looking Left ←';
+    if (offset >  0.15) return 'Looking Right →';
+    return 'Looking Center ✓';
+}
+
+// Get frame as base64 for DeepFace
+function getFrameB64() {
+    try {
+        const video = document.getElementById('video');
+        if (!video || !video.videoWidth) return '';
+        const c = document.createElement('canvas');
+        c.width  = 320;
+        c.height = 240;
+        c.getContext('2d').drawImage(video, 0, 0, 320, 240);
+        return c.toDataURL('image/jpeg', 0.6).split(',')[1];
+    } catch(e) { return ''; }
+}
+
+async function startCamera() {
+    if (!modelsLoaded) {
+        alert('Models loading... wait 3 seconds and try again.');
+        return;
+    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width:{ideal:640}, height:{ideal:480}, facingMode:'user' }
+        });
+        const video  = document.getElementById('video');
+        const canvas = document.getElementById('overlay');
+        video.srcObject = stream;
+        video.style.display = 'block';
+        document.getElementById('placeholder').style.display = 'none';
+
+        video.onloadedmetadata = async () => {
+            canvas.width  = video.videoWidth  || 640;
+            canvas.height = video.videoHeight || 480;
+            monitoring    = true;
+            blinkCount = yawnCount = earConsec = yawnConsec = frameCount = 0;
+            earHistory = []; marHistory = [];
+            await fetch('/start_camera', {method:'POST'});
+            detectLoop(video, canvas);
+        };
+    } catch(err) {
+        alert('Camera error: ' + (err.name === 'NotAllowedError' ? 'Allow camera permission!' : err.message));
+    }
+}
+
+async function detectLoop(video, canvas) {
+    if (!monitoring) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    try {
+        const det = await faceapi
+            .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({
+                inputSize: 512, scoreThreshold: 0.3
+            }))
+            .withFaceLandmarks()
+            .withFaceExpressions();
+
+        if (det) {
+            const pts = det.landmarks.positions;
+            const box = det.detection.box;
+
+            // ── EAR ──
+            const leftEyePts  = [pts[36],pts[37],pts[38],pts[39],pts[40],pts[41]];
+            const rightEyePts = [pts[42],pts[43],pts[44],pts[45],pts[46],pts[47]];
+            const earL = computeEAR(leftEyePts);
+            const earR = computeEAR(rightEyePts);
+            const ear  = (earL + earR) / 2;
+
+            earHistory.push(ear);
+            if (earHistory.length > 15) earHistory.shift();
+            const avgEAR = earHistory.reduce((a,b)=>a+b,0) / earHistory.length;
+
+            // ── MAR (yawn) ──
+            const mar = computeMAR(pts);
+            marHistory.push(mar);
+            if (marHistory.length > 10) marHistory.shift();
+            const avgMAR = marHistory.reduce((a,b)=>a+b,0) / marHistory.length;
+
+            // ── Blink detect ──
+            if (ear < EAR_THRESH) {
+                earConsec++;
+            } else {
+                if (earConsec >= BLINK_CONSEC && !blinkCooldown) {
+                    blinkCount++;
+                    blinkCooldown = true;
+                    const el = document.getElementById('stat-blinks');
+                    el.textContent = blinkCount;
+                    el.style.color = '#ff4444';
+                    setTimeout(() => { el.style.color = '#7c6ff7'; blinkCooldown = false; }, 400);
+                }
+                earConsec = 0;
+            }
+
+            // ── Yawn detect ──
+            if (avgMAR > MAR_THRESH) {
+                yawnConsec++;
+                if (yawnConsec === YAWN_CONSEC) {
+                    yawnCount++;
+                    document.getElementById('info-yawn').textContent = `Yes (${yawnCount}×) 😪`;
+                }
+            } else {
+                yawnConsec = 0;
+            }
+
+            // ── Head direction ──
+            const headDir   = getHeadDir(pts);
+            const eyeStatus = avgEAR < EAR_THRESH ? 'Closing 😑' : 'Open ✅';
+
+            // ── EAR bar ──
+            const earPct = Math.min(100, avgEAR * 380);
+            const earBar = document.getElementById('ear-fill');
+            earBar.style.width      = earPct + '%';
+            earBar.style.background = avgEAR < EAR_THRESH ? '#ff4444' : avgEAR < 0.26 ? '#ffa500' : '#00c853';
+
+            // ── Draw face box ──
+            ctx.strokeStyle = avgEAR < EAR_THRESH ? '#ff4444' : '#7c6ff7';
+            ctx.lineWidth   = 2;
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+            // ── Draw eyes ──
+            const ec = avgEAR < EAR_THRESH ? '#ff4444' : '#00c853';
+            const drawEye = (eyePts) => {
+                ctx.strokeStyle = ec; ctx.lineWidth = 1.5; ctx.beginPath();
+                eyePts.forEach((p,i) => i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+                ctx.closePath(); ctx.stroke();
+            };
+            drawEye(leftEyePts);
+            drawEye(rightEyePts);
+
+            // ── Draw mouth ──
+            const mouthPts = [pts[48],pts[49],pts[50],pts[51],pts[52],pts[53],pts[54],pts[55],pts[56],pts[57],pts[58],pts[59]];
+            ctx.strokeStyle = avgMAR > MAR_THRESH ? '#ffa500' : 'rgba(124,111,247,0.5)';
+            ctx.lineWidth = 1.5; ctx.beginPath();
+            mouthPts.forEach((p,i) => i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+            ctx.closePath(); ctx.stroke();
+
+            // ── Labels ──
+            ctx.font = 'bold 12px Segoe UI';
+            ctx.fillStyle = '#7c6ff7';
+            ctx.fillText(headDir, box.x, box.y - 8);
+            ctx.fillStyle = ec;
+            ctx.fillText(`EAR:${avgEAR.toFixed(3)}`, box.x + box.width - 70, box.y - 8);
+
+            // ── Update UI ──
+            document.getElementById('info-eye').textContent  = eyeStatus;
+            document.getElementById('info-head').textContent = headDir;
+
+            // ── Send to server every 600ms ──
+            const now = Date.now();
+            if (now - lastSendTime > 600) {
+                lastSendTime = now;
+                fetch('/update_face_data', {
+                    method:  'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        blinks:     blinkCount,
+                        head:       headDir,
+                        eye_status: eyeStatus,
+                        ear:        avgEAR.toFixed(3),
+                        frame_b64:  getFrameB64()
+                    })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('status-pill').textContent = '● ' + data.status;
+                    document.getElementById('status-pill').style.color = data.status_color;
+                    updateStatusCard(data.status, data.status_color);
+                    document.getElementById('stat-keys').textContent  = data.keys  || 0;
+                    document.getElementById('stat-moves').textContent = data.moves || 0;
+                    document.getElementById('stat-idle').textContent  = (data.idle || 0) + 's';
+                    if (data.emotion)     document.getElementById('info-emotion').textContent  = data.emotion;
+                    if (data.suggestion)  document.getElementById('ai-suggestion').textContent = data.suggestion;
+                    if (data.show_game_popup) document.getElementById('game-popup').classList.add('show');
+                })
+                .catch(e => console.error('Server:', e));
+            }
+
+        } else {
+            // No face
+            ctx.font = '14px Segoe UI';
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.textAlign = 'center';
+            ctx.fillText('No face detected — move closer 📷', canvas.width/2, canvas.height/2);
+            ctx.textAlign = 'left';
+        }
+
+    } catch(e) {
+        console.error('Detection error:', e);
+    }
+
+    // Next frame — 100ms interval
+    animFrame = setTimeout(() => detectLoop(video, canvas), 100);
+}
+function updateStatusCard(status, color) {
+    const subMap = {
+        'FOCUSED':'Great concentration! 🎯',
+        'FATIGUED':'Rest recommended 😴',
+        'DISTRACTED':'Refocus needed 🎯',
+        'MONITORING':'Collecting data...'
+    };
+    document.getElementById('status-circle').style.background = color || '#888';
+    document.getElementById('status-text').textContent        = status;
+    document.getElementById('status-sub').textContent         = subMap[status] || '';
+}
+
+function stopCamera() {
+    monitoring = false;
+    if (animFrame) clearTimeout(animFrame);
+    const video = document.getElementById('video');
+    if (video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+    }
+    video.style.display = 'none';
+    document.getElementById('placeholder').style.display = 'flex';
+    document.getElementById('status-pill').textContent   = '● INACTIVE';
+    document.getElementById('status-pill').style.color   = '';
+    updateStatusCard('MONITORING', '#888');
+    const summary = `Blinks:${blinkCount}, Yawns:${yawnCount}, Keys:${document.getElementById('stat-keys').textContent}`;
+    fetch('/save_monitoring_summary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({summary})});
+    fetch('/stop_camera',{method:'POST'});
+    blinkCount = yawnCount = 0;
+}
+
+function closePopup() { document.getElementById('game-popup').classList.remove('show'); }
+
+function startGame(type) {
+    closePopup();
+    document.getElementById('game-container').classList.add('show');
+    document.getElementById('game-container').scrollIntoView({behavior:'smooth'});
+    if(type==='ttt')    initTicTacToe();
+    if(type==='puzzle') initPuzzle();
+    if(type==='memory') initMemory();
+}
+
+function closeGame() {
+    document.getElementById('game-container').classList.remove('show');
+    document.getElementById('game-content').innerHTML='';
+}
+
+function initTicTacToe(){
+    document.getElementById('game-title-text').textContent='⭕ Tic Tac Toe';
+    let b=Array(9).fill(''),cur='X',over=false;
+    function r(){
+        const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+        let w=null; for(let[a,b2,c]of wins)if(b[a]&&b[a]===b[b2]&&b[a]===b[c])w=b[a];
+        const d=b.every(c=>c)&&!w; if(w||d)over=true;
+        let h=`<div class="ttt-status">${w?`🎉 Player ${w} wins!`:d?'🤝 Draw!':'Player '+cur+"'s turn"}</div><div class="ttt-board">`;
+        b.forEach((c,i)=>h+=`<div class="ttt-cell ${c.toLowerCase()}" onclick="tC(${i})">${c==='X'?'✕':c==='O'?'◯':''}</div>`);
+        h+=`</div><button class="ttt-reset" onclick="initTicTacToe()">New Game 🔄</button>`;
+        if(over)h+=gc('Mind refreshed! 🧠');
+        document.getElementById('game-content').innerHTML=h;
+    }
+    window.tC=function(i){if(b[i]||over)return;b[i]=cur;cur=cur==='X'?'O':'X';r();if(!over&&cur==='O'){setTimeout(()=>{const e=b.map((c,i)=>c?null:i).filter(i=>i!==null);if(e.length){b[e[Math.floor(Math.random()*e.length)]]='O';cur='X';r();}},500);}};
+    r();
+}
+
+function initPuzzle(){
+    document.getElementById('game-title-text').textContent='🔢 15 Puzzle';
+    let t=[...Array(15).keys()].map(i=>i+1);t.push(0);
+    for(let i=t.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[t[i],t[j]]=[t[j],t[i]];}
+    let m=0;
+    function r(){let h=`<div class="puzzle-moves">Moves: ${m}</div><div class="puzzle-board">`;t.forEach((v,i)=>h+=v===0?`<div class="puzzle-cell empty"></div>`:`<div class="puzzle-cell" onclick="pC(${i})">${v}</div>`);h+=`</div><button class="ttt-reset" onclick="initPuzzle()">Shuffle 🔄</button>`;document.getElementById('game-content').innerHTML=h;}
+    window.pC=function(i){const e=t.indexOf(0);if(![i-1,i+1,i-4,i+4].includes(e))return;if(i%4===0&&e===i-1)return;if(i%4===3&&e===i+1)return;[t[i],t[e]]=[t[e],t[i]];m++;r();if(t.slice(0,15).every((v,i)=>v===i+1))document.getElementById('game-content').innerHTML+=gc(`Solved in ${m} moves! 🎉`);};
+    r();
+}
+
+function initMemory(){
+    document.getElementById('game-title-text').textContent='🃏 Memory Match';
+    const em=['🌟','🎯','💡','🧠','📚','🎨','🌈','🔥'];
+    let cards=[...em,...em].sort(()=>Math.random()-0.5),fl=[],ma=[],att=0,lk=false;
+    function r(){let h=`<div class="mem-score">Matched:${ma.length/2}/${em.length} Attempts:${att}</div><div class="memory-board">`;cards.forEach((c,i)=>{const f=fl.includes(i),m=ma.includes(i);h+=`<div class="mem-card ${m?'matched':f?'':'hidden'}" onclick="mC(${i})"><span>${c}</span></div>`;});h+=`</div>`;document.getElementById('game-content').innerHTML=h;if(ma.length===cards.length)document.getElementById('game-content').innerHTML+=gc(`All matched in ${att} attempts! 🧠`);}
+    window.mC=function(i){if(lk||fl.includes(i)||ma.includes(i))return;fl.push(i);r();if(fl.length===2){lk=true;att++;setTimeout(()=>{if(cards[fl[0]]===cards[fl[1]])ma.push(...fl);fl=[];lk=false;r();},800);}};
+    r();
+}
+
+function gc(msg){
+    return `<div class="game-complete"><h3>🎉 Well Done!</h3><p>${msg}</p><p style="margin-top:6px;font-size:12px;color:rgba(255,255,255,0.5)">Ready to study? 📚</p><button class="resume-btn" onclick="closeGame();window.location.href='/chatbot_page'">Back to Study 🎯</button></div>`;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARIA — AI Study Assistant</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0d0d1a; color: #fff; min-height: 100vh; display: flex; flex-direction: column; }
+
+        .navbar { background: rgba(255,255,255,0.04); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0 30px; height: 64px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+        .brand { font-size: 18px; font-weight: 700; }
+        .nav-links { display: flex; gap: 8px; align-items: center; }
+        .nav-links a { color: rgba(255,255,255,0.6); text-decoration: none; padding: 8px 16px; border-radius: 8px; font-size: 14px; transition: all 0.2s; }
+        .nav-links a:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .nav-links a.active { background: rgba(124,111,247,0.2); color: #7c6ff7; }
+        .nav-links .logout { background: rgba(255,80,80,0.1); color: #ff6b6b; border: 1px solid rgba(255,80,80,0.2); }
+        .user-badge { background: linear-gradient(135deg, #7c6ff7, #5b4fcf); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+
+        .chat-wrapper { flex: 1; display: flex; max-width: 860px; width: 100%; margin: 0 auto; padding: 20px; gap: 16px; }
+
+        /* Left sidebar */
+        .sidebar { width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
+
+        .sidebar-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 16px; }
+        .sidebar-card h4 { font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+
+        .quick-btn { display: block; width: 100%; padding: 9px 12px; background: rgba(124,111,247,0.08); border: 1px solid rgba(124,111,247,0.15); border-radius: 10px; color: rgba(255,255,255,0.7); font-size: 12px; cursor: pointer; text-align: left; margin-bottom: 6px; transition: all 0.2s; }
+        .quick-btn:hover { background: rgba(124,111,247,0.2); color: #fff; }
+        .quick-btn:last-child { margin-bottom: 0; }
+
+        /* Memory banner */
+        .memory-card { background: linear-gradient(135deg, rgba(0,200,83,0.08), rgba(0,150,60,0.06)); border: 1px solid rgba(0,200,83,0.2); border-radius: 16px; padding: 14px; font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.5; }
+        .memory-card .mem-title { color: #00c853; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+        .mem-cont-btn { display: block; width: 100%; margin-top: 10px; padding: 7px; background: rgba(0,200,83,0.15); border: 1px solid rgba(0,200,83,0.25); border-radius: 8px; color: #00c853; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; }
+
+        /* Main chat */
+        .chat-main { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+
+        .chat-header { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 18px 20px; display: flex; align-items: center; gap: 14px; }
+        .aria-avatar { width: 48px; height: 48px; background: linear-gradient(135deg, #7c6ff7, #5b4fcf); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+        .aria-info h2 { font-size: 17px; font-weight: 700; margin-bottom: 3px; }
+        .aria-info p { font-size: 12px; color: rgba(255,255,255,0.4); }
+        .online-badge { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #00c853; }
+        .online-dot { width: 7px; height: 7px; background: #00c853; border-radius: 50%; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        /* Messages */
+        .messages { flex: 1; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 20px; overflow-y: auto; min-height: 380px; max-height: 460px; display: flex; flex-direction: column; gap: 14px; }
+
+        .message { display: flex; gap: 10px; animation: fadeIn 0.3s ease; }
+        .message.user { flex-direction: row-reverse; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+        .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+        .avatar.ai { background: linear-gradient(135deg, #7c6ff7, #5b4fcf); }
+        .avatar.user { background: linear-gradient(135deg, #00c853, #00a846); }
+
+        .bubble { max-width: 78%; padding: 11px 15px; border-radius: 16px; font-size: 14px; line-height: 1.65; }
+        .message.ai .bubble { background: rgba(124,111,247,0.1); border: 1px solid rgba(124,111,247,0.18); color: rgba(255,255,255,0.9); border-top-left-radius: 4px; }
+        .message.user .bubble { background: linear-gradient(135deg, #7c6ff7, #5b4fcf); color: #fff; border-top-right-radius: 4px; }
+
+        .typing-bubble { display: flex; gap: 5px; padding: 14px 16px; align-items: center; }
+        .typing-bubble span { width: 7px; height: 7px; background: rgba(124,111,247,0.7); border-radius: 50%; animation: bounce 1.2s infinite; }
+        .typing-bubble span:nth-child(2){animation-delay:0.2s}
+        .typing-bubble span:nth-child(3){animation-delay:0.4s}
+        @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+
+        /* Quiz */
+        .quiz-wrapper { background: #fffbf0; border: 2px solid #ffcc80; border-radius: 18px; padding: 22px; color: #333; animation: fadeIn 0.4s ease; }
+        .quiz-header { text-align: center; margin-bottom: 18px; }
+        .quiz-header h3 { font-size: 17px; font-weight: 700; color: #e65100; margin-bottom: 4px; }
+        .quiz-header p { font-size: 12px; color: #888; }
+
+        .q-card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .q-text { font-weight: 600; font-size: 14px; color: #333; margin-bottom: 10px; }
+
+        .q-option { display: block; width: 100%; padding: 9px 13px; margin: 5px 0; background: #f8f8f8; border: 2px solid transparent; border-radius: 9px; cursor: pointer; font-size: 13px; color: #444; text-align: left; transition: all 0.18s; }
+        .q-option:hover { background: #ede7f6; border-color: #9575cd; color: #333; }
+        .q-option.selected { background: #ede7f6; border-color: #7c6ff7; }
+        .q-option.correct { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
+        .q-option.wrong { background: #ffebee; border-color: #ef5350; color: #c62828; }
+        .q-option:disabled { cursor: default; }
+
+        .quiz-submit { width: 100%; padding: 13px; background: linear-gradient(135deg, #7c6ff7, #5b4fcf); border: none; border-radius: 11px; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 6px; transition: all 0.2s; }
+        .quiz-submit:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(124,111,247,0.35); }
+
+        .quiz-result { text-align: center; padding: 18px; border-radius: 12px; margin-top: 14px; }
+        .quiz-result.great { background: #e8f5e9; color: #2e7d32; }
+        .quiz-result.okay  { background: #fff3e0; color: #e65100; }
+        .quiz-result h4 { font-size: 16px; margin-bottom: 6px; }
+        .quiz-result p { font-size: 13px; }
+
+        /* Riddle */
+        .riddle-card { background: #f3e5f5; border: 2px solid #ce93d8; border-radius: 14px; padding: 18px; color: #333; margin-top: 10px; }
+        .riddle-q { font-weight: 600; font-size: 14px; color: #6a1b9a; margin-bottom: 14px; }
+        .riddle-reveal { padding: 10px 18px; background: linear-gradient(135deg, #9c27b0, #7b1fa2); border: none; border-radius: 9px; color: #fff; font-size: 13px; cursor: pointer; }
+        .riddle-answer { display: none; margin-top: 12px; padding: 10px 14px; background: #fff; border-radius: 9px; font-size: 13px; color: #4a148c; font-weight: 600; }
+
+        /* Input */
+        .input-area { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 12px 16px; display: flex; gap: 10px; align-items: center; }
+        .input-area input { flex: 1; background: transparent; border: none; outline: none; color: #fff; font-size: 14px; font-family: 'Segoe UI', sans-serif; }
+        .input-area input::placeholder { color: rgba(255,255,255,0.3); }
+
+        .send-btn { width: 40px; height: 40px; background: linear-gradient(135deg, #7c6ff7, #5b4fcf); border: none; border-radius: 10px; color: #fff; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+        .send-btn:hover { transform: scale(1.05); box-shadow: 0 4px 14px rgba(124,111,247,0.4); }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="brand">🧠 AI Study Analyzer</div>
+    <div class="nav-links">
+        <a href="/dashboard">📹 Monitor</a>
+        <a href="/chatbot_page" class="active">💬 ARIA</a>
+        <span class="user-badge">👤 {{ user }}</span>
+        <a href="/logout" class="logout">Logout</a>
+    </div>
+</nav>
+
+<div class="chat-wrapper">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-card">
+            <h4>Quick Help</h4>
+            <button class="quick-btn" onclick="sendQuick('I am feeling very tired and cannot focus')">😴 Feeling tired</button>
+            <button class="quick-btn" onclick="sendQuick('I cannot concentrate on my studies')">🎯 No focus</button>
+            <button class="quick-btn" onclick="sendQuick('I have exam stress and anxiety')">😰 Exam stress</button>
+            <button class="quick-btn" onclick="sendQuick('My eyes are hurting from screen')">👁️ Eye strain</button>
+            <button class="quick-btn" onclick="sendQuick('Give me a quick brain refresher quiz')">🧠 Quiz me</button>
+            <button class="quick-btn" onclick="sendQuick('I need motivation to study right now')">💪 Motivate me</button>
+        </div>
+
+        {% if last_topic %}
+        <div class="memory-card">
+            <div class="mem-title">🧠 Last Session</div>
+            <div>{{ last_topic[:80] }}...</div>
+            <button class="mem-cont-btn" onclick="continueTopic()">Continue →</button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Main Chat -->
+    <div class="chat-main">
+        <div class="chat-header">
+            <div class="aria-avatar">🤖</div>
+            <div class="aria-info">
+                <h2>ARIA</h2>
+                <p>Advanced Real-time Intelligence Assistant</p>
+            </div>
+            <div class="online-badge">
+                <div class="online-dot"></div> Online
+            </div>
+        </div>
+
+        <div class="messages" id="messages">
+            <div class="message ai">
+                <div class="avatar ai">🤖</div>
+                <div class="bubble">
+                    Hello! I'm <strong>ARIA</strong> 👋 — your personal AI study assistant.<br><br>
+                    I can help you with <strong>focus issues, fatigue, stress, study planning</strong>, and more.
+                    Talk to me in <strong>English</strong> or <strong>Roman Urdu</strong> — I'll respond in whichever you prefer! 😊<br><br>
+                    How are you doing today?
+                </div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="user-input"
+                   placeholder="Type in English or Roman Urdu..."
+                   onkeydown="if(event.key==='Enter') sendMessage()">
+            <button class="send-btn" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const lastTopic  = "{{ last_topic | safe }}";
+    let quizData     = null;
+    let userAnswers  = {};
+    let usedQuestions = [];
+
+    function addMessage(text, type) {
+        const messages = document.getElementById('messages');
+        const div = document.createElement('div');
+        div.className = `message ${type}`;
+        const avatar  = type === 'ai' ? '🤖' : '👤';
+        const formatted = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        div.innerHTML = `<div class="avatar ${type}">${avatar}</div><div class="bubble">${formatted}</div>`;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function addTyping() {
+        const messages = document.getElementById('messages');
+        const div = document.createElement('div');
+        div.className = 'message ai';
+        div.id = 'typing-indicator';
+        div.innerHTML = `<div class="avatar ai">🤖</div><div class="bubble typing-bubble"><span></span><span></span><span></span></div>`;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function removeTyping() {
+        const t = document.getElementById('typing-indicator');
+        if (t) t.remove();
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('user-input');
+        const text  = input.value.trim();
+        if (!text) return;
+
+        addMessage(text, 'user');
+        input.value = '';
+        addTyping();
+
+        // Quiz trigger
+        const quizTriggers = ['quiz', 'brain game', 'refresher', 'test me', 'question'];
+        if (quizTriggers.some(t => text.toLowerCase().includes(t))) {
+            removeTyping();
+            generateQuiz('general knowledge');
+            return;
+        }
+
+        fetch('/chat', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify({message: text})
+        })
+        .then(r => r.json())
+        .then(data => {
+            removeTyping();
+            addMessage(data.reply, 'ai');
+            if (data.offer_quiz) {
+                setTimeout(() => addQuizOffer(), 600);
+            }
+        })
+        .catch(() => {
+            removeTyping();
+            addMessage('Sorry, something went wrong. Please try again 😊', 'ai');
+        });
+    }
+
+    function sendQuick(text) {
+        document.getElementById('user-input').value = text;
+        sendMessage();
+    }
+
+    function continueTopic() {
+        sendQuick(`I want to continue studying from where I left off: ${lastTopic}`);
+    }
+
+    function addQuizOffer() {
+        const messages = document.getElementById('messages');
+        const div = document.createElement('div');
+        div.className = 'message ai';
+        div.innerHTML = `
+            <div class="avatar ai">🤖</div>
+            <div class="bubble">
+                Would you like a quick brain refresher quiz? It'll help sharpen your focus! 🧠
+                <br><br>
+                <button onclick="generateQuiz('general knowledge')"
+                    style="padding:8px 16px;background:linear-gradient(135deg,#7c6ff7,#5b4fcf);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:13px;margin-right:8px;">
+                    Yes, quiz me! ✨
+                </button>
+                <button onclick="this.parentElement.parentElement.parentElement.remove()"
+                    style="padding:8px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:rgba(255,255,255,0.6);cursor:pointer;font-size:13px;">
+                    Not now
+                </button>
+            </div>`;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function generateQuiz(topic) {
+        addTyping();
+        fetch('/generate_quiz', {
+            method:  'POST',
+            headers: {'Content-Type': 'application/json'},
+            body:    JSON.stringify({topic, used_questions: usedQuestions})
+        })
+        .then(r => r.json())
+        .then(data => {
+            removeTyping();
+            if (data.success) {
+                quizData    = data.quiz;
+                userAnswers = {};
+                // Track used questions
+                data.quiz.questions.forEach(q => usedQuestions.push(q.q.slice(0,40)));
+                if (usedQuestions.length > 15) usedQuestions = usedQuestions.slice(-15);
+                renderQuiz(data.quiz);
+            } else {
+                addMessage("Couldn't generate quiz right now. Try again! 😊", 'ai');
+            }
+        })
+        .catch(() => {
+            removeTyping();
+            addMessage("Quiz generation failed. Please try again 😊", 'ai');
+        });
+    }
+
+    function renderQuiz(quiz) {
+        const messages = document.getElementById('messages');
+        const wrapper  = document.createElement('div');
+        wrapper.id     = 'quiz-wrapper';
+        wrapper.style.maxWidth = '100%';
+
+        let qHtml = '';
+        quiz.questions.forEach((q, qi) => {
+            const opts = q.options.map((opt, oi) =>
+                `<button class="q-option" id="opt-${qi}-${oi}" onclick="selectOpt(${qi},'${opt[0]}',${q.options.length})">${opt}</button>`
+            ).join('');
+            qHtml += `<div class="q-card"><div class="q-text">Q${qi+1}. ${q.q}</div><div id="opts-${qi}">${opts}</div></div>`;
+        });
+
+        wrapper.innerHTML = `
+            <div class="quiz-wrapper">
+                <div class="quiz-header">
+                    <h3>${quiz.title}</h3>
+                    <p>Answer all questions then submit 📝</p>
+                </div>
+                ${qHtml}
+                <button class="quiz-submit" onclick="submitQuiz()">Submit Answers ✨</button>
+            </div>`;
+
+        messages.appendChild(wrapper);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function selectOpt(qi, answer, total) {
+        userAnswers[qi] = answer;
+        for (let i = 0; i < total; i++) {
+            const b = document.getElementById(`opt-${qi}-${i}`);
+            if (b) { b.classList.remove('selected'); b.style.borderColor = 'transparent'; }
+        }
+        document.querySelectorAll(`#opts-${qi} .q-option`).forEach(b => {
+            if (b.textContent.trim()[0] === answer) b.classList.add('selected');
+        });
+    }
+
+    function submitQuiz() {
+        if (!quizData) return;
+        let score = 0;
+        quizData.questions.forEach((q, qi) => {
+            const correct = q.answer;
+            const chosen  = userAnswers[qi];
+            document.querySelectorAll(`#opts-${qi} .q-option`).forEach(b => {
+                b.disabled = true;
+                const letter = b.textContent.trim()[0];
+                if (letter === correct)                    b.classList.add('correct');
+                else if (letter === chosen && chosen !== correct) b.classList.add('wrong');
+            });
+            if (chosen === correct) score++;
+        });
+
+        const total = quizData.questions.length;
+        const pct   = Math.round((score/total)*100);
+        const resDiv = document.createElement('div');
+        resDiv.className = `quiz-result ${pct >= 60 ? 'great' : 'okay'}`;
+
+        if (pct >= 60) {
+            resDiv.innerHTML = `<h4>🎉 Great job! ${score}/${total} (${pct}%)</h4><p>Your brain is refreshed and ready to study! 🧠✨</p>`;
+            document.querySelector('.quiz-submit').remove();
+            document.querySelector('.quiz-wrapper').appendChild(resDiv);
+            setTimeout(() => {
+                addMessage(`Amazing! You scored ${pct}% on the quiz! 🎉 Your mind is clearly sharp. Ready to get back to studying? 📚`, 'ai');
+            }, 1000);
+        } else {
+            resDiv.innerHTML = `<h4>Keep going! ${score}/${total} (${pct}%)</h4><p>You can do better — let's try a riddle to boost your thinking! 💡</p>`;
+            document.querySelector('.quiz-submit').remove();
+            document.querySelector('.quiz-wrapper').appendChild(resDiv);
+            setTimeout(() => {
+                addMessage(`You scored ${pct}% — that's okay! Your brain might still be warming up 😊 Let me give you a riddle to sharpen your thinking!`, 'ai');
+                loadRiddle();
+            }, 1000);
+        }
+    }
+
+    function loadRiddle() {
+        fetch('/get_riddle')
+        .then(r => r.json())
+        .then(riddle => {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <div class="riddle-card">
+                    <div class="riddle-q">🤔 ${riddle.q}</div>
+                    <button class="riddle-reveal" onclick="revealRiddle(this)">Reveal Answer 💡</button>
+                    <div class="riddle-answer" id="riddle-ans">✅ ${riddle.a}</div>
+                </div>`;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        });
+    }
+
+    function revealRiddle(btn) {
+        const ans = document.getElementById('riddle-ans');
+        ans.style.display = 'block';
+        btn.style.display = 'none';
+        setTimeout(() => {
+            addMessage("Did you get it? 😊 Riddles are great for activating different parts of your brain! Now you're ready to focus. Let's get back to studying! 📚💪", 'ai');
+        }, 800);
+    }
+</script>
+</body>
+</html>
